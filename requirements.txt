@@ -4,15 +4,15 @@ einops
 safetensors
 timm
 tomesd
-torch==2.6.0
+torch
 torchdiffeq
 torchsde
 decord
 datasets
-torchvision==0.21.0
+torchvision
 opencv-python>=4.9.0.80
-diffusers==0.30.1
-transformers==4.51.3
+diffusers
+transformers
 tokenizers>=0.20.3
 accelerate>=1.1.1
 tqdm
@@ -20,7 +20,6 @@ easydict
 ftfy
 dashscope
 imageio-ffmpeg
-gradio>=5.0.0
 numpy>=1.23.5,<2
 scikit-image
 opencv-python
@@ -33,4 +32,4 @@ tensorboard
 beautifulsoup4
 ftfy
 librosa
-torchaudio==2.6.0
+torchaudio
