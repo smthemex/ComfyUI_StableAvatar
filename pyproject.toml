@@ -1,0 +1,16 @@
+[project]
+name = "stableavatar"
+description = "StableAvatar: Infinite-Length Audio-Driven Avatar Video Generation,you can try it in ComfyUI."
+version = "1.0.0"
+license = {file = "LICENSE"}
+dependencies = ["ninja", "Pillow", "einops", "safetensors", "timm", "torch", "torchdiffeq", "torchsde", "decord", "datasets", "torchvision", "opencv-python>=4.9.0.80", "diffusers", "transformers", "tokenizers>=0.20.3", "accelerate>=1.1.1", "tqdm", "easydict", "ftfy", "dashscope", "imageio-ffmpeg", "numpy>=1.23.5,<2", "scikit-image", "opencv-python", "omegaconf", "SentencePiece", "albumentations", "imageio[ffmpeg]", "imageio[pyav]", "tensorboard", "beautifulsoup4", "ftfy", "librosa", "torchaudio"]
+
+[project.urls]
+Repository = "https://github.com/smthemex/ComfyUI_StableAvatar"
+#  Used by Comfy Registry https://registry.comfy.org
+
+[tool.comfy]
+PublisherId = "smthemex"
+DisplayName = "ComfyUI_StableAvatar"
+Icon = ""
+includes = []
