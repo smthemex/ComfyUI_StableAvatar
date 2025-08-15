@@ -1,0 +1,35 @@
+{
+    "bf16": {
+        "enabled": "auto"
+    },
+    "train_micro_batch_size_per_gpu": "auto",
+    "train_batch_size": "auto",
+    "gradient_accumulation_steps": "auto",
+    "zero_optimization": {
+        "stage": 2,
+        "overlap_comm": true,
+        "contiguous_gradients": true,
+        "sub_group_size": 1e9,
+        "offload_optimizer": {
+            "device": "cpu",
+            "pin_memory": true
+        }
+    },
+
+    "optimizer": {
+        "type": "AdamW",
+        "params": {
+            "lr": 5e-5,
+            "betas": [0.9, 0.95],
+            "weight_decay": 0.01
+        }
+    },
+    "scheduler": {
+        "type": "WarmupDecayLR",
+        "params": {
+            "warmup_min_lr": 1e-6,
+            "warmup_max_lr": 5e-5,
+            "total_num_steps": 10000
+        }
+    }
+}

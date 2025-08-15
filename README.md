@@ -3,7 +3,8 @@
 
 
 # UPDATE
-* Coming soon,特点，无限长（音频多长就推理多长）
+*  Infinite-Length Audio-Driven / 特点，无限长（音频多长就推理多长） 
+*  如果也使用了echomimic V3，会自动调用v3的共用模型 
 
 # 1. Installation
 
@@ -48,9 +49,12 @@ pip install -r requirements.txt
 # 4.Tips
 * 480x832 or 832x480 or 512x512 resolution /模型在这三种分辨率训练，推荐使用
 * overlap_window_length 越大越好越慢/ high will get best quality but more times
-* step  30~50
-* 二种gpu卸载方式
-  
+* step  25~50  
+* 二种gpu卸载方式,推荐用mmgp  
+* duration>0 时裁切，裁切数值为秒/ if duration>0 will cut the  input audio  
+* 推理歌曲时，须开启audio_separator分离人声 / when infer a song  need turn on the audio_separator to get vocal.  
+* 暂时不要开启teacache，会花  
+
 
 # 5. Example
 ![](https://github.com/smthemex/ComfyUI_StableAvatar/blob/main/example_workflows/example.png)
