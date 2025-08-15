@@ -207,8 +207,7 @@ class StableAvatar_Sampler:
                 "sample_audio_guide_scale": ("FLOAT", {"default": 5.0, "min": 0.0, "max": 10.0, "step": 0.1, "round": 0.01}),
                 "steps": ("INT", {"default": 25, "min": 1, "max": 100}),
                 "overlap_window_length": ("INT", {"default": 5, "min": 5, "max": 15,"step": 1,}),     
-                "save_video": ("BOOLEAN", {"default": False},),
-             
+                "overlapping_weight_scheme": (["uniform", "log",],),
                   },    
         }
     
@@ -217,12 +216,12 @@ class StableAvatar_Sampler:
     FUNCTION = "em_main"
     CATEGORY = "StableAvatar"
     
-    def em_main(self,model, emb, seed, cfg, sample_text_guide_scale,sample_audio_guide_scale,steps, overlap_window_length,save_video,):
+    def em_main(self,model, emb, seed, cfg, sample_text_guide_scale,sample_audio_guide_scale,steps, overlap_window_length,overlapping_weight_scheme):
 
         emb["motion_frame"]=25
         emb["sample_steps"]=steps
         frame_rate = float(emb.get("fps"))
-        samples = infer_StableAvatar(model, emb,seed, cfg,device, steps,frame_rate, sample_text_guide_scale,sample_audio_guide_scale, overlap_window_length,save_video,emb.get("weight_dtype",torch.bfloat16))
+        samples = infer_StableAvatar(model, emb,seed, cfg,device, steps,frame_rate, sample_text_guide_scale,sample_audio_guide_scale, overlap_window_length,emb.get("weight_dtype",torch.bfloat16),overlapping_weight_scheme)
         #print("samples.shape:",samples.shape)
         gc.collect()
         torch.cuda.empty_cache()
