@@ -375,7 +375,7 @@ def pre_data_process(text_encoder,clip_image_encoder,tokenizer,prompt,negative_p
     return emb
 
 
-def infer_StableAvatar(pipeline,args,seed,cfg,device,steps,frame_rate,sample_text_guide_scale,sample_audio_guide_scale,overlap_window_length,save_video,weight_dtype):
+def infer_StableAvatar(pipeline,args,seed,cfg,device,steps,frame_rate,sample_text_guide_scale,sample_audio_guide_scale,overlap_window_length,weight_dtype,overlapping_weight_scheme):
 
     coefficients = get_teacache_coefficients(args.get("pretrained_model_name_or_path")) if args.get("enable_teacache") else None
     if coefficients is not None:
@@ -416,7 +416,9 @@ def infer_StableAvatar(pipeline,args,seed,cfg,device,steps,frame_rate,sample_tex
             clip_image_tensor=args.get("clip_image_tensor"),
             clip_context=args.get("clip_context"),
             weight_dtype=weight_dtype,
+            overlapping_weight_scheme=overlapping_weight_scheme,
         ).videos
+        
 
         del pipeline
         # audio_file_prefix=args.get("audio_file_prefix")
