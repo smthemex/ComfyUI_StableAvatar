@@ -3,6 +3,7 @@
 
 
 # UPDATE
+*  同步官方最新平滑及对数滑动窗口机制代码； 
 *  Infinite-Length Audio-Driven / 特点，无限长（音频多长就推理多长） 
 *  如果也使用了echomimic V3，会自动调用v3的共用模型 
 
@@ -57,7 +58,7 @@ pip install -r requirements.txt
 
 
 # 5. Example
-![](https://github.com/smthemex/ComfyUI_StableAvatar/blob/main/example_workflows/example.png)
+![](https://github.com/smthemex/ComfyUI_StableAvatar/blob/main/example_workflows/example_1.png)
 
 
 # 6 .Citation
