@@ -1,29 +1,12 @@
-import argparse
-import gc
-import logging
-import math
-import os
-import random
-import shutil
-import subprocess
-from functools import partial
 
-import diffusers
+import gc
+import os
+import subprocess
 import numpy as np
 import torch
 import torch.nn.functional as F
-import torch.utils.checkpoint
-import torchvision.transforms.functional as TF
-import transformers
-from accelerate import Accelerator
 from accelerate.logging import get_logger
-from accelerate.utils import ProjectConfiguration, set_seed
-from diffusers import DDIMScheduler, FlowMatchEulerDiscreteScheduler
-from diffusers.optimization import get_scheduler
-from diffusers.training_utils import (EMAModel,
-                                      compute_density_for_timestep_sampling,
-                                      compute_loss_weighting_for_sd3)
-from diffusers.utils import check_min_version, deprecate, is_wandb_available
+from diffusers import  FlowMatchEulerDiscreteScheduler
 from einops import rearrange
 from omegaconf import OmegaConf
 from PIL import Image
@@ -34,21 +17,15 @@ from pathlib import Path
 import imageio
 import torchvision
 from transformers import Wav2Vec2Model, Wav2Vec2Processor
-import torch.distributed as dist
-import folder_paths
-from .StableAvatar.wan.dist import set_multi_gpus_devices
-from .StableAvatar.wan.distributed.fsdp import shard_model
+
+
+from .StableAvatar.fm_solvers_unipc import FlowUniPCMultistepScheduler
 from .StableAvatar.wan.models.cache_utils import get_teacache_coefficients
 from .StableAvatar.wan.models.wan_fantasy_transformer3d_1B import WanTransformer3DFantasyModel
-from .StableAvatar.wan.models.wan_text_encoder import WanT5EncoderModel
 from .StableAvatar.wan.models.wan_vae import AutoencoderKLWan
-from .StableAvatar.wan.models.wan_image_encoder import CLIPModel
 from .StableAvatar.wan.pipeline.wan_inference_long_pipeline import WanI2VTalkingInferenceLongPipeline
-
-from .StableAvatar.wan.utils.discrete_sampler import DiscreteSampling
-from .StableAvatar.wan.utils.fp8_optimization import replace_parameters_by_name, convert_weight_dtype_wrapper, \
-    convert_model_weight_to_float8
-from .StableAvatar.wan.utils.utils import get_image_to_video_latent, save_videos_grid
+from .StableAvatar.wan.utils.fp8_optimization import replace_parameters_by_name, convert_weight_dtype_wrapper, convert_model_weight_to_float8
+from .StableAvatar.wan.utils.utils import get_image_to_video_latent
 
 logger = get_logger(__name__, log_level="INFO")
 
@@ -240,23 +217,12 @@ def generate_timestep_with_lognorm(low, high, shape, device="cpu", generator=Non
 
 
 
-def load_StableAvatar_model(args,vae_path,config,device,weight_dtype,use_mmgp):
-    #args = parse_args()
-    
-    # device = set_multi_gpus_devices(args.ulysses_degree, args.ring_degree)
-    sampler_name = "Flow"
-    # GPU_memory_mode = "model_full_load"
-   
-    # fsdp_dit = False
-    # weight_dtype=args.weight_dtype
+def load_StableAvatar_model(args,vae_path,config,device,weight_dtype,use_mmgp,lora_path):
+
+    sampler_name = "Flow" if not lora_path else "Flow_Unipc"
+
     tokenizer = AutoTokenizer.from_pretrained(os.path.join(args.pretrained_model_name_or_path, config['text_encoder_kwargs'].get('tokenizer_subpath', 'tokenizer')), )
-    # text_encoder = WanT5EncoderModel.from_pretrained(
-    #     os.path.join(args.pretrained_model_name_or_path, config['text_encoder_kwargs'].get('text_encoder_subpath', 'text_encoder')),
-    #     additional_kwargs=OmegaConf.to_container(config['text_encoder_kwargs']),
-    #     low_cpu_mem_usage=True,
-    #     torch_dtype=weight_dtype,
-    # )
-    # text_encoder = text_encoder.eval()
+
     vae = AutoencoderKLWan.from_pretrained(
         vae_path,
         additional_kwargs=OmegaConf.to_container(config['vae_kwargs']),
@@ -264,8 +230,6 @@ def load_StableAvatar_model(args,vae_path,config,device,weight_dtype,use_mmgp):
     wav2vec_processor = Wav2Vec2Processor.from_pretrained(args.pretrained_wav2vec_path)
     wav2vec = Wav2Vec2Model.from_pretrained(args.pretrained_wav2vec_path).to("cpu")
 
-    #clip_image_encoder = CLIPModel.from_pretrained(os.path.join(args.pretrained_model_name_or_path, config['image_encoder_kwargs'].get('image_encoder_subpath', 'image_encoder')), )
-    #clip_image_encoder = clip_image_encoder.eval()
 
     transformer3d = WanTransformer3DFantasyModel.from_pretrained(
         args.pretrained_dit_path,
@@ -280,10 +244,28 @@ def load_StableAvatar_model(args,vae_path,config,device,weight_dtype,use_mmgp):
         m, u = transformer3d.load_state_dict(state_dict, strict=False)
         print(f"missing keys: {len(m)}, unexpected keys: {len(u)}")
 
+    if lora_path:
+        from .lora_adapter import WanLoraWrapper
+        lora_wrapper = WanLoraWrapper(transformer3d)
+        lora_name = lora_wrapper.load_lora(lora_path)
+        lora_wrapper.apply_lora(lora_name, 1.0)
+        transformer3d=lora_wrapper.model
+
+
     Choosen_Scheduler = scheduler_dict = {
         "Flow": FlowMatchEulerDiscreteScheduler,
+        "Flow_Unipc": FlowUniPCMultistepScheduler,
     }[sampler_name]
 
+    if sampler_name=="Flow_Unipc":
+        config['scheduler_kwargs']["solver_order"]=2
+        config['scheduler_kwargs']["lower_order_final"]=True
+        config['scheduler_kwargs']["solver_type"]="bh2"
+        config['scheduler_kwargs']["predict_x0"]=True
+        config['scheduler_kwargs']["sample_max_value"]=1.0
+        config['scheduler_kwargs']["dynamic_thresholding_ratio"]=0.995
+        config['scheduler_kwargs']["prediction_type"]="flow_prediction"
+        config['scheduler_kwargs']["thresholding"]=False
     scheduler = Choosen_Scheduler(
         **filter_kwargs(Choosen_Scheduler, OmegaConf.to_container(config['scheduler_kwargs']))
     )
@@ -421,9 +403,7 @@ def infer_StableAvatar(pipeline,args,seed,cfg,device,steps,frame_rate,sample_tex
         
 
         del pipeline
-        # audio_file_prefix=args.get("audio_file_prefix")
-        # video_path = os.path.join(folder_paths.output_directory, f"{audio_file_prefix}_video_without_audio.mp4")
-        # outputs=save_videos_grid(sample, video_path,save_video, fps=frame_rate)
+
     return sample
 
 def encode_prompt(
