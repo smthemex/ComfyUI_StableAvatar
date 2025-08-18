@@ -11,7 +11,7 @@ import platform
 import subprocess
 from omegaconf import OmegaConf
 
-from .node_utils import load_images,nomarl_upscale,is_directory_with_files
+from .node_utils import nomarl_upscale,is_directory_with_files
 from .inference import load_StableAvatar_model,pre_data_process,infer_StableAvatar
 
 import folder_paths
@@ -67,6 +67,7 @@ class StableAvatar_LoadModel:
             "required": {
                 "transformer": (folder_paths.get_filename_list("diffusion_models"),),
                 "vae": (folder_paths.get_filename_list("vae"),),
+                "lora": (["None"]+folder_paths.get_filename_list("loras"),),
                 "enable_teacache": ("BOOLEAN", {"default": False},),
                 "use_mmgp": (["LowRAM_LowVRAM","None", "VerylowRAM_LowVRAM","LowRAM_HighVRAM","HighRAM_LowVRAM","HighRAM_HighVRAM" ],), 
                 "GPU_memory_mode": (["model_cpu_offload_and_qfloat8", "model_cpu_offload","None","sequential_cpu_offload", ],), 
@@ -79,7 +80,7 @@ class StableAvatar_LoadModel:
     FUNCTION = "main_loader"
     CATEGORY = "StableAvatar"
     
-    def main_loader(self, transformer,vae,enable_teacache,use_mmgp,GPU_memory_mode,weight_dtype):
+    def main_loader(self, transformer,vae,lora,enable_teacache,use_mmgp,GPU_memory_mode,weight_dtype):
 
         vae_path=folder_paths.get_full_path( "vae",vae)
         transformer_path=folder_paths.get_full_path("diffusion_models",transformer)
@@ -106,7 +107,9 @@ class StableAvatar_LoadModel:
         elif weight_dtype == "float32":
             weight_dtype_ = torch.float32
 
-        model, tokenizer,temporal_compression_ratio= load_StableAvatar_model(args,vae_path, config, device,weight_dtype_,use_mmgp)
+        lora_path=folder_paths.get_full_path( "loras",lora) if "None"!=lora else None
+
+        model, tokenizer,temporal_compression_ratio= load_StableAvatar_model(args,vae_path, config, device,weight_dtype_,use_mmgp,lora_path)
         args.temporal_compression_ratio=temporal_compression_ratio
        
         info={"args":args,"tokenizer":tokenizer,"weight_dtype":weight_dtype_,}
