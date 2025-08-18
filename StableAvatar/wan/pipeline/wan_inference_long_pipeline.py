@@ -23,7 +23,7 @@ from einops import rearrange
 from PIL import Image
 from transformers import AutoTokenizer
 from transformers import Wav2Vec2Model, Wav2Vec2Processor
-
+from ...fm_solvers_unipc import FlowUniPCMultistepScheduler
 from ..models.vocal_projector_fantasy import split_audio_sequence, split_tensor_with_padding
 from ..models.wan_fantasy_transformer3d_1B import WanTransformer3DFantasyModel
 from ..models.wan_image_encoder import CLIPModel
@@ -209,7 +209,7 @@ class WanI2VTalkingInferenceLongPipeline(DiffusionPipeline):
             vae: AutoencoderKLWan,
             transformer: WanTransformer3DFantasyModel,
             #clip_image_encoder: CLIPModel,
-            scheduler: FlowMatchEulerDiscreteScheduler,
+            scheduler:  Union[FlowMatchEulerDiscreteScheduler, FlowUniPCMultistepScheduler],
             wav2vec_processor: Wav2Vec2Processor,
             wav2vec: Wav2Vec2Model,
     ):
@@ -650,8 +650,17 @@ class WanI2VTalkingInferenceLongPipeline(DiffusionPipeline):
         frames_per_batch = 21
         if isinstance(self.scheduler, FlowMatchEulerDiscreteScheduler):
             timesteps, num_inference_steps = retrieve_timesteps(self.scheduler, num_inference_steps, device, timesteps, mu=1)
+        elif isinstance(self.scheduler, FlowUniPCMultistepScheduler):
+             timesteps, num_inference_steps = retrieve_timesteps(
+                        self.scheduler, 
+                        num_inference_steps, 
+                        device, 
+                        timesteps, 
+                        mu=1 if self.scheduler.config.use_dynamic_shifting else None
+                    )
         else:
             timesteps, num_inference_steps = retrieve_timesteps(self.scheduler, num_inference_steps, device, timesteps)
+
         self._num_timesteps = len(timesteps)
 
         latent_channels = self.vae.config.latent_channels
@@ -720,8 +729,12 @@ class WanI2VTalkingInferenceLongPipeline(DiffusionPipeline):
         y = torch.cat([mask_input.to(device), masked_video_latents_input.to(device)], dim=1).to(device, weight_dtype)
         #print(y.shape) #torch.Size([3, 20, 31, 64, 64])
         extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
+       
         with self.progress_bar(total=num_inference_steps) as progress_bar:
             for i, t in enumerate(timesteps):
+                if isinstance(self.scheduler, FlowUniPCMultistepScheduler):
+                    self.scheduler.set_timesteps(num_inference_steps, device=device)
+
                 if self.interrupt:
                     continue
 
@@ -731,15 +744,13 @@ class WanI2VTalkingInferenceLongPipeline(DiffusionPipeline):
                 overlap_window_length = overlap_window_length  # 5 # [5, 7, 10] longer length --> higher quality
                 index_end = index_start + frames_per_batch # 0+21
                 index_previous_end = index_end # 0+21
-                while index_end <= infer_length: #31
-                    self.scheduler._step_index = None
-                    # idx_list = [ii % latents_all.shape[2] for ii in range(index_start, index_end)]
 
-                    # if index_end == infer_length:
-                    #     idx_list_audio = [ii % max_audio_index for ii in range(index_start * 4 * audio_token_per_frame, max_audio_index)]
-                    # else:
-                    #     idx_list_audio = [ii % max_audio_index for ii in range(index_start * 4 * audio_token_per_frame, index_start * 4 * audio_token_per_frame + clip_length * audio_token_per_frame)]
-                    
+               
+
+                while index_end <= infer_length: #31
+                    if hasattr(self.scheduler, '_step_index'):
+                        self.scheduler._step_index = None     
+                          
                     idx_list = [ii for ii in range(index_start, min(index_end, infer_length))]
                     #print(f"idx_list: {idx_list}")
                     # 修复：正确计算音频索引
@@ -755,6 +766,11 @@ class WanI2VTalkingInferenceLongPipeline(DiffusionPipeline):
 
                     ## idx_list_audio = [ii % max_audio_index for ii in range(index_start * 4 * audio_token_per_frame, index_end * 4 * audio_token_per_frame)]
                     latents = latents_all[:, :, idx_list].clone()
+                    if latents.shape[2] < frames_per_batch:
+                        pad_shape = list(latents.shape)
+                        pad_shape[2] = frames_per_batch - latents.shape[2]
+                        pad = torch.zeros(pad_shape, dtype=latents.dtype, device=latents.device)
+                        latents = torch.cat([latents, pad], dim=2)
                     sub_vocal_input_values = vocal_input_values[idx_list_audio]
                     sub_vocal_input_values = self.wav2vec_processor(sub_vocal_input_values, sampling_rate=sr, return_tensors="pt").input_values.to(device)
                     sub_vocal_embeddings = self.wav2vec(sub_vocal_input_values).last_hidden_state
@@ -770,9 +786,6 @@ class WanI2VTalkingInferenceLongPipeline(DiffusionPipeline):
                    
                     with torch.amp.autocast('cuda', dtype=weight_dtype):
                         legal_compressed_frames_num = latents.size()[2]
-                        #print(1,latents.shape) #torch.Size([1, 16, 17, 64, 64]) #torch.Size([1, 16, 21, 64, 64])
-                        #print(2,y[:, :, :legal_compressed_frames_num].shape) # 2 torch.Size([3, 20, 17, 64, 64]) torch.Size([3, 20, 21, 64, 64])
-                        #print(3,y.shape) #torch.Size([3, 20, 31, 64, 64])
                         noise_pred = self.transformer(
                             x=latent_model_input,
                             context=prompt_embeds,
