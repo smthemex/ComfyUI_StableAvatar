@@ -16,8 +16,9 @@ git clone https://github.com/smthemex/ComfyUI_StableAvatar.git
 ---
   
 # 2. Requirements  
-
+audio-separator仅在推理歌曲时有用。
 ```
+pip install audio-separator --no-deps # optional if need vocal 
 pip install -r requirements.txt
 ```
 
