@@ -13,7 +13,7 @@ from omegaconf import OmegaConf
 
 from .node_utils import load_images,nomarl_upscale,is_directory_with_files
 from .inference import load_StableAvatar_model,pre_data_process,infer_StableAvatar
-from .vocal_seperator import separator_audio
+
 import folder_paths
 
 
@@ -174,6 +174,7 @@ class StableAvatar_Predata:
             
         # get vocal if infer a song
         if audio_separator:
+            from .vocal_seperator import separator_audio
             audio_separator_model_file=os.path.join(weigths_current_path,"Kim_Vocal_2.onnx")
             validation_driven_audio_path=separator_audio(audio_file, audio_separator_model_file,folder_paths.get_temp_directory(),audio_file_prefix)
         else:
