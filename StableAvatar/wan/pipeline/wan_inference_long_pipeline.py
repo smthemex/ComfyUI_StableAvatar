@@ -30,7 +30,7 @@ from ..models.wan_image_encoder import CLIPModel
 from ..models.wan_text_encoder import WanT5EncoderModel
 from ..models.wan_vae import AutoencoderKLWan
 from ..utils.color_correction import match_and_blend_colors
-
+from ...flow_match_lcm import WanStepDistillScheduler
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
 EXAMPLE_DOC_STRING = """
@@ -658,12 +658,17 @@ class WanI2VTalkingInferenceLongPipeline(DiffusionPipeline):
                         timesteps, 
                         mu=1 if self.scheduler.config.use_dynamic_shifting else None
                     )
+        elif isinstance(self.scheduler, WanStepDistillScheduler):
+            self.scheduler.set_denoising_timesteps( device=self.device)
+            timesteps = self.scheduler.timesteps
+            num_inference_steps = len(timesteps)
         else:
             timesteps, num_inference_steps = retrieve_timesteps(self.scheduler, num_inference_steps, device, timesteps)
 
         self._num_timesteps = len(timesteps)
 
         latent_channels = self.vae.config.latent_channels
+        
         latents = self.prepare_latents(
             batch_size * num_videos_per_prompt,
             latent_channels,
@@ -734,6 +739,9 @@ class WanI2VTalkingInferenceLongPipeline(DiffusionPipeline):
             for i, t in enumerate(timesteps):
                 if isinstance(self.scheduler, FlowUniPCMultistepScheduler):
                     self.scheduler.set_timesteps(num_inference_steps, device=device)
+                # elif isinstance(self.scheduler, WanStepDistillScheduler):
+                #     self.scheduler.set_denoising_timesteps(device=device)
+                   
 
                 if self.interrupt:
                     continue
@@ -766,7 +774,7 @@ class WanI2VTalkingInferenceLongPipeline(DiffusionPipeline):
 
                     ## idx_list_audio = [ii % max_audio_index for ii in range(index_start * 4 * audio_token_per_frame, index_end * 4 * audio_token_per_frame)]
                     latents = latents_all[:, :, idx_list].clone()
-                    if latents.shape[2] < frames_per_batch:
+                    if latents.shape[2] < frames_per_batch and isinstance(self.scheduler, FlowUniPCMultistepScheduler) :
                         pad_shape = list(latents.shape)
                         pad_shape[2] = frames_per_batch - latents.shape[2]
                         pad = torch.zeros(pad_shape, dtype=latents.dtype, device=latents.device)
