@@ -312,7 +312,7 @@ def load_StableAvatar_model(args,vae_path,config,device,weight_dtype,use_mmgp,lo
 
    
     temporal_compression_ratio=vae.config.temporal_compression_ratio
-    return  pipeline,tokenizer,temporal_compression_ratio
+    return  pipeline,tokenizer,temporal_compression_ratio,sampler_name
 
 def pre_data_process(text_encoder,clip_image_encoder,tokenizer,prompt,negative_prompt,infer_img,device,width,height,args,weight_dtype):
 
@@ -346,7 +346,8 @@ def pre_data_process(text_encoder,clip_image_encoder,tokenizer,prompt,negative_p
         clip_image=clip_image.permute(1, 2, 0).unsqueeze(0) #comfy need [B,C,H,W] -->[B,H,W,C]
         clip_dict=clip_image_encoder.encode_image(clip_image)
         clip_context =clip_dict["penultimate_hidden_states"].to(device, weight_dtype)
-        clip_context = (torch.cat([clip_context, clip_context, clip_context], dim=0) if do_classifier_free_guidance else clip_context)
+        clip_context = (torch.cat([clip_context, clip_context, clip_context], dim=0) if do_classifier_free_guidance else clip_context)   #LCM need [B,C,H,W]   
+
         clip_image_encoder.patcher.cleanup()
 
     gc.collect()
@@ -369,6 +370,43 @@ def infer_StableAvatar(pipeline,args,seed,cfg,device,steps,frame_rate,sample_tex
             num_skip_start_steps=args.get("num_skip_start_steps"),
             offload=args.get("teacache_offload")
         )
+   
+    if 8 > steps and args.get("sampler_name")=="Flow_Unipc":
+        print("Using LCM schedulers")
+        target_height = args.get("height", 480)
+        target_width = args.get("width", 832)
+        target_video_length = args.get("video_length", 81)
+        vae = pipeline.vae
+        compressed_height = target_height // vae.spacial_compression_ratio
+        compressed_width = target_width // vae.spacial_compression_ratio
+        compressed_length = (target_video_length - 1) // vae.temporal_compression_ratio + 1
+        
+        lcm_config = {
+        "infer_steps": 4 if steps< 4 else steps,
+        "target_video_length": 81,
+        "target_height": 480,
+        "target_width": 832,
+        "self_attn_1_type": "flash_attn3",
+        "cross_attn_1_type": "flash_attn3",
+        "cross_attn_2_type": "flash_attn3",
+        "seed": seed,
+        "sample_guide_scale": 5,
+        "denoising_step_list": generate_denoising_step_list(steps),
+        "sample_shift": 5,
+        "enable_cfg": False,
+        "cpu_offload": False,
+        "target_shape":[1, vae.config.latent_channels, compressed_length, compressed_height, compressed_width],
+        "task":"t2v",
+        "patch_size": (1, 2, 2),
+        "vae_stride": (4, 8, 8),
+            }
+        
+        config_ =OmegaConf.create(lcm_config)
+        from .StableAvatar.flow_match_lcm import WanStepDistillScheduler
+        pipeline.scheduler = WanStepDistillScheduler(config_)
+       
+        
+
     generator = torch.Generator(device=device).manual_seed(seed)
 
     with torch.no_grad():
@@ -396,7 +434,7 @@ def infer_StableAvatar(pipeline,args,seed,cfg,device,steps,frame_rate,sample_tex
             seed=seed,
             overlap_window_length=overlap_window_length,
             clip_image_tensor=args.get("clip_image_tensor"),
-            clip_context=args.get("clip_context"),
+            clip_context=args.get("clip_context") ,
             weight_dtype=weight_dtype,
             overlapping_weight_scheme=overlapping_weight_scheme,
         ).videos
@@ -405,6 +443,17 @@ def infer_StableAvatar(pipeline,args,seed,cfg,device,steps,frame_rate,sample_tex
         del pipeline
 
     return sample
+
+def generate_denoising_step_list(num_steps):
+    if num_steps == 6:
+        return [1000, 700, 500, 300, 150, 50] 
+    elif num_steps == 5:
+        return [1000, 700, 300, 150, 50]
+    elif num_steps == 7:
+        return [1000, 800, 600, 400, 200, 100, 50]
+    else:
+        [1000, 750, 500, 250]
+
 
 def encode_prompt(
         text_encoder,
