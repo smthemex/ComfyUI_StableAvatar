@@ -109,10 +109,10 @@ class StableAvatar_LoadModel:
 
         lora_path=folder_paths.get_full_path( "loras",lora) if "None"!=lora else None
 
-        model, tokenizer,temporal_compression_ratio= load_StableAvatar_model(args,vae_path, config, device,weight_dtype_,use_mmgp,lora_path)
+        model, tokenizer,temporal_compression_ratio,sampler_name= load_StableAvatar_model(args,vae_path, config, device,weight_dtype_,use_mmgp,lora_path)
         args.temporal_compression_ratio=temporal_compression_ratio
        
-        info={"args":args,"tokenizer":tokenizer,"weight_dtype":weight_dtype_,}
+        info={"args":args,"tokenizer":tokenizer,"weight_dtype":weight_dtype_,"sampler_name":sampler_name}
        
         print("##### model  loaded #####")
      
@@ -193,6 +193,7 @@ class StableAvatar_Predata:
                     "sample_steps":args.sample_steps,
                     "pretrained_model_name_or_path":args.pretrained_model_name_or_path,
                     "weight_dtype":weight_dtype,
+                    "sampler_name":info.get("sampler_name"),
                     })
 
         return (emb,)
