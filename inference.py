@@ -284,19 +284,20 @@ def load_StableAvatar_model(args,vae_path,config,device,weight_dtype,use_mmgp,lo
     #     if args.fsdp_dit:
     #         shard_fn = partial(shard_model, device_id=device, param_dtype=weight_dtype)
     #         pipeline.transformer = shard_fn(pipeline.transformer)
+    quantizeTransformer=False if args.GPU_memory_mode=="None" else True
     if use_mmgp!="None":
         from mmgp import offload, profile_type
         pipeline.to("cpu")
         if use_mmgp=="VerylowRAM_LowVRAM":
-            offload.profile(pipeline, profile_type.VerylowRAM_LowVRAM)
+            offload.profile(pipeline, profile_type.VerylowRAM_LowVRAM,quantizeTransformer=quantizeTransformer)
         elif use_mmgp=="LowRAM_LowVRAM":  
-            offload.profile(pipeline, profile_type.LowRAM_LowVRAM)
+            offload.profile(pipeline, profile_type.LowRAM_LowVRAM,quantizeTransformer=quantizeTransformer)
         elif use_mmgp=="LowRAM_HighVRAM":
-            offload.profile(pipeline, profile_type.LowRAM_HighVRAM)
+            offload.profile(pipeline, profile_type.LowRAM_HighVRAM,quantizeTransformer=quantizeTransformer)
         elif use_mmgp=="HighRAM_LowVRAM":
-            offload.profile(pipeline, profile_type.HighRAM_LowVRAM)
+            offload.profile(pipeline, profile_type.HighRAM_LowVRAM,quantizeTransformer=quantizeTransformer)
         elif use_mmgp=="HighRAM_HighVRAM":
-            offload.profile(pipeline, profile_type.HighRAM_HighVRAM)
+            offload.profile(pipeline, profile_type.HighRAM_HighVRAM,quantizeTransformer=quantizeTransformer)
     elif args.GPU_memory_mode == "sequential_cpu_offload":
         replace_parameters_by_name(transformer3d, ["modulation", ], device=device)
         transformer3d.freqs = transformer3d.freqs.to(device=device)
