@@ -70,7 +70,7 @@ class StableAvatar_LoadModel:
                 "lora": (["None"]+folder_paths.get_filename_list("loras"),),
                 "enable_teacache": ("BOOLEAN", {"default": False},),
                 "use_mmgp": (["LowRAM_LowVRAM","None", "VerylowRAM_LowVRAM","LowRAM_HighVRAM","HighRAM_LowVRAM","HighRAM_HighVRAM" ],), 
-                "GPU_memory_mode": (["model_cpu_offload_and_qfloat8", "model_cpu_offload","None","sequential_cpu_offload", ],), 
+                "GPU_memory_mode": (["None","model_cpu_offload_and_qfloat8", "model_cpu_offload","sequential_cpu_offload", ],), 
                 "weight_dtype": (["bfloat16", "float16", "float32"],),
                 },
         }
