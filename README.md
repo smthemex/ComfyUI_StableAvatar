@@ -3,6 +3,7 @@
 
 
 # UPDATE
+*  设置GPU_memory_mode 为None 时，关闭mmgp的fp8量化/ when set GPU_memory_mode to None， will disabled mmgp ‘s  FP8 quantize;  
 *  when step<8 and lightX2V lora will run in LCM mode/ 步数小于8时（搭配lightX2V lora）自动开启lcm，最小4步； 
 *  可以使用lightX2V lora进行10步推理，节省2.5倍的时间/ use lightX2V lora infer in 10 steps.
 *  同步官方最新平滑及对数滑动窗口机制代码； 
