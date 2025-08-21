@@ -454,7 +454,9 @@ class WanStepDistillScheduler(WanScheduler):
         if self.step_index < self.infer_steps - 1:
             sigma = self.sigmas[self.step_index + 1].item()
             noisy_image_or_video = self.add_noise(noisy_image_or_video, torch.randn_like(noisy_image_or_video), self.sigmas[self.step_index + 1].item())
+
         self.latents = noisy_image_or_video.to(self.latents.dtype)
+
         
     def step(self, model_output, timestep, sample, generator=None, return_dict=True):
         """
@@ -486,3 +488,37 @@ class WanStepDistillScheduler(WanScheduler):
             return {"prev_sample": self.latents}
         else:
             return (self.latents,)
+    def reset_state_for_new_batch(self):
+        """
+        重置调度器状态以适应新的批次或窗口
+        """
+        
+        # 重置调度器核心状态
+        self.step_index = 0
+        self.latents = None
+        self.noise_pred = None
+        self.model_outputs = [None] * self.solver_order
+        self.timestep_list = [None] * self.solver_order
+        self.last_sample = None
+        self.lower_order_nums = 0
+        self.this_order = None
+        if hasattr(self, 'previous_noisy_state'):
+            delattr(self, 'previous_noisy_state')
+        if hasattr(self, 'window_position'):
+            delattr(self, 'window_position')
+        
+
+    def is_compatible_with_shape(self, sample_shape):
+        """
+        检查当前状态是否与新的样本形状兼容
+        """
+        if self.latents is None:
+            return True
+        return self.latents.shape == sample_shape
+    
+    def prepare_for_step_with_different_shape(self, sample_shape):
+        """
+        为不同形状的输入准备调度器状态
+        """
+        if not self.is_compatible_with_shape(sample_shape):
+            self.reset_state_for_new_batch()
