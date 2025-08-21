@@ -3,8 +3,9 @@
 
 
 # UPDATE
+*  修复TCD和LCM因为全零pad引发的伪影，LCM因为融合机制的问题，批次过渡会有一定的闪烁，但好过之前，cfg不要设置为1。
 *  设置GPU_memory_mode 为None 时，关闭mmgp的fp8量化/ when set GPU_memory_mode to None， will disabled mmgp ‘s  FP8 quantize;  
-*  when step<8 and lightX2V lora will run in LCM mode/ 步数小于8时（搭配lightX2V lora）自动开启lcm，最小4步； 
+*  when step=4 and lightX2V lora will run in LCM mode/ 步数为4时（搭配lightX2V lora）自动开启lcm； 
 *  可以使用lightX2V lora进行10步推理，节省2.5倍的时间/ use lightX2V lora infer in 10 steps.
 *  同步官方最新平滑及对数滑动窗口机制代码； 
 *  Infinite-Length Audio-Driven / 特点，无限长（音频多长就推理多长） 
