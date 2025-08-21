@@ -66,7 +66,7 @@ pip install -r requirements.txt
 
 
 # 5. Example
-![](https://github.com/smthemex/ComfyUI_StableAvatar/blob/main/example_workflows/example_lora.png)
+![](https://github.com/smthemex/ComfyUI_StableAvatar/blob/main/example_workflows/example0821.png)
 
 
 # 6 .Citation
