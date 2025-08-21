@@ -17,7 +17,7 @@ from pathlib import Path
 import imageio
 import torchvision
 from transformers import Wav2Vec2Model, Wav2Vec2Processor
-
+import math
 
 from .StableAvatar.fm_solvers_unipc import FlowUniPCMultistepScheduler
 from .StableAvatar.wan.models.cache_utils import get_teacache_coefficients
@@ -328,6 +328,7 @@ def pre_data_process(text_encoder,clip_image_encoder,tokenizer,prompt,negative_p
         input_video, input_video_mask, _ = get_image_to_video_latent([infer_img], None, video_length=video_length, sample_size=[width, height]) # 首尾帧的处理流程
         sr = 16000
         vocal_input, sample_rate = librosa.load(args.validation_driven_audio_path, sr=sr)
+       
 
         #clip_image = cond_image = Image.open(cond_file_path).convert('RGB')
         clip_image = cond_image = infer_img
@@ -372,8 +373,9 @@ def infer_StableAvatar(pipeline,args,seed,cfg,device,steps,frame_rate,sample_tex
             offload=args.get("teacache_offload")
         )
    
-    if 8 > steps and args.get("sampler_name")=="Flow_Unipc":
-        print("Using LCM schedulers")
+    if 4 == steps and args.get("sampler_name")=="Flow_Unipc":
+
+        print("###### Using LCM schedulers ######")
         target_height = args.get("height", 480)
         target_width = args.get("width", 832)
         target_video_length = args.get("video_length", 81)
@@ -383,7 +385,7 @@ def infer_StableAvatar(pipeline,args,seed,cfg,device,steps,frame_rate,sample_tex
         compressed_length = (target_video_length - 1) // vae.temporal_compression_ratio + 1
         
         lcm_config = {
-        "infer_steps": 4 if steps< 4 else steps,
+        "infer_steps": 4,
         "target_video_length": 81,
         "target_height": 480,
         "target_width": 832,
@@ -392,7 +394,7 @@ def infer_StableAvatar(pipeline,args,seed,cfg,device,steps,frame_rate,sample_tex
         "cross_attn_2_type": "flash_attn3",
         "seed": seed,
         "sample_guide_scale": 5,
-        "denoising_step_list": generate_denoising_step_list(steps),
+        "denoising_step_list": [1000, 750, 500, 250],
         "sample_shift": 5,
         "enable_cfg": False,
         "cpu_offload": False,
@@ -445,15 +447,6 @@ def infer_StableAvatar(pipeline,args,seed,cfg,device,steps,frame_rate,sample_tex
 
     return sample
 
-def generate_denoising_step_list(num_steps):
-    if num_steps == 6:
-        return [1000, 700, 500, 300, 150, 50] 
-    elif num_steps == 5:
-        return [1000, 700, 300, 150, 50]
-    elif num_steps == 7:
-        return [1000, 800, 600, 400, 200, 100, 50]
-    else:
-        [1000, 750, 500, 250]
 
 
 def encode_prompt(
