@@ -798,3 +798,30 @@ class FlowUniPCMultistepScheduler(SchedulerMixin, ConfigMixin):
 
     def __len__(self):
         return self.config.num_train_timesteps
+    
+  
+    def reset_state_for_new_batch(self):
+        """
+        完全重置调度器状态以适应新的批次
+        """
+        self.model_outputs = [None] * self.config.solver_order
+        self.timestep_list = [None] * self.config.solver_order
+        self.lower_order_nums = 0
+        self.last_sample = None
+        self._step_index = None
+        self.this_order = 0
+    
+    def is_compatible_with_shape(self, sample_shape):
+        """
+        检查当前状态是否与新的样本形状完全兼容
+        """
+        if self.last_sample is None:
+            return True
+        return self.last_sample.shape == sample_shape
+    
+    def prepare_for_step_with_different_shape(self, sample_shape):
+        """
+        为不同形状的输入准备调度器状态
+        """
+        if not self.is_compatible_with_shape(sample_shape):
+            self.reset_state_for_new_batch()
